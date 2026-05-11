@@ -58,7 +58,7 @@ export default function ScanLanding() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  }, [companyId]);
+  }, [companyId, router]);
 
   useEffect(() => {
     checkLocation();

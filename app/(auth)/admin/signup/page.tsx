@@ -17,10 +17,17 @@ import {
   Chip,
   Stack
 } from '@mui/material';
-import { LocationOn } from '@mui/icons-material';
+import { LocationOn, GpsFixed } from '@mui/icons-material';
 import ShimmerButton from '@/components/ui/shimmer-button';
 import { useToast } from '@/components/shared/ToastProvider';
 import SparklesText from '@/components/ui/sparkles-text';
+
+import dynamic from 'next/dynamic';
+
+const MapPicker = dynamic(() => import('@/components/shared/MapPicker'), { 
+  ssr: false,
+  loading: () => <CircularProgress size={20} />
+});
 
 const signupSchema = z.object({
   companyName: z.string().min(2, 'Company name is required'),
@@ -40,6 +47,7 @@ export default function AdminSignup() {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
@@ -109,8 +117,8 @@ export default function AdminSignup() {
       <Container maxWidth="sm">
         <Box className="text-center mb-10">
           <SparklesText 
-            text="Join Anvil" 
-            className="text-6xl font-bold text-primary mb-4"
+            text="Join Presenz" 
+            className="text-4xl md:text-6xl font-bold text-primary mb-4"
           />
           <Typography variant="h6" className="text-text-secondary font-medium tracking-wide uppercase text-sm">
             Set up your company workspace
@@ -163,22 +171,41 @@ export default function AdminSignup() {
                 </Stack>
 
                 <Box className="flex flex-col items-center gap-4 py-2">
-                  <Button 
-                    variant="outlined" 
-                    fullWidth
-                    size="large"
-                    startIcon={gettingLocation ? <CircularProgress size={20} /> : <LocationOn />}
-                    onClick={handleGetLocation}
-                    disabled={gettingLocation}
-                    sx={{ 
-                      borderRadius: '12px',
-                      height: '56px',
-                      borderWidth: '2px',
-                      '&:hover': { borderWidth: '2px' }
+                  <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+                    <Button 
+                      variant="outlined" 
+                      startIcon={gettingLocation ? <CircularProgress size={20} /> : <GpsFixed />}
+                      onClick={handleGetLocation}
+                      disabled={gettingLocation}
+                      className="flex-grow"
+                      sx={{ borderRadius: '12px', height: '56px', borderWidth: '2px' }}
+                    >
+                      Capture GPS
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      color="secondary"
+                      startIcon={<LocationOn />}
+                      onClick={() => setMapOpen(true)}
+                      className="flex-grow"
+                      sx={{ borderRadius: '12px', height: '56px', borderWidth: '2px' }}
+                    >
+                      Pick on Map
+                    </Button>
+                  </Stack>
+
+                  <MapPicker 
+                    open={mapOpen} 
+                    onClose={() => setMapOpen(false)}
+                    onSelect={(lat, lng) => {
+                      setLocation({ 
+                        lat: parseFloat(lat.toFixed(6)), 
+                        lng: parseFloat(lng.toFixed(6)) 
+                      });
+                      showToast('Location selected from map', 'success');
                     }}
-                  >
-                    {location ? 'Update Location' : 'Capture Office Location'}
-                  </Button>
+                    initialLocation={location || undefined}
+                  />
                   
                   {location && (
                     <Stack direction="row" spacing={1} alignItems="center">
@@ -220,6 +247,12 @@ export default function AdminSignup() {
             </form>
           </CardContent>
         </Card>
+
+        <Box className="mt-8 text-center">
+          <Typography variant="caption" className="text-text-secondary font-medium">
+            &copy; {new Date().getFullYear()} Presenz • Powered by <strong>RNS Solutions</strong>
+          </Typography>
+        </Box>
       </Container>
     </Box>
   );

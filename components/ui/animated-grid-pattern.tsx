@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -35,22 +35,32 @@ export const AnimatedGridPattern = ({
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [squares, setSquares] = useState<any[]>([]);
 
-  const getPos = () => {
+  const getPos = useCallback(() => {
     return [
       Math.floor((Math.random() * dimensions.width) / width),
       Math.floor((Math.random() * dimensions.height) / height),
     ];
-  };
+  }, [dimensions.width, dimensions.height, width, height]);
+
+  const generateSquares = useCallback((count: number) => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      pos: getPos(),
+    }));
+  }, [getPos]);
 
   // Generate squares only when dimensions change
   useEffect(() => {
     if (dimensions.width > 0 && dimensions.height > 0) {
       setSquares(generateSquares(numSquares));
     }
-  }, [dimensions, numSquares]);
+  }, [dimensions.width, dimensions.height, numSquares, generateSquares]);
 
   // Resize observer to update container dimensions
   useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         setDimensions({
@@ -60,30 +70,12 @@ export const AnimatedGridPattern = ({
       }
     });
 
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
+    resizeObserver.observe(node);
 
     return () => {
-      if (containerRef.current) {
-        resizeObserver.unobserve(containerRef.current);
-      }
+      resizeObserver.unobserve(node);
     };
-  }, [containerRef]);
-
-  const generateSquares = (count: number) => {
-    return Array.from({ length: count }, (_, i) => ({
-      id: i,
-      pos: getPos(),
-    }));
-  };
-
-  const updateSquareProps = (prevSquares: any[]) => {
-    return prevSquares.map((sq) => ({
-      ...sq,
-      pos: getPos(),
-    }));
-  };
+  }, []);
 
   return (
     <svg
@@ -136,3 +128,5 @@ export const AnimatedGridPattern = ({
     </svg>
   );
 };
+
+export default AnimatedGridPattern;

@@ -29,6 +29,12 @@ import {
 import { useToast } from '@/components/shared/ToastProvider';
 import ShimmerButton from '@/components/ui/shimmer-button';
 import useSWR from 'swr';
+import dynamic from 'next/dynamic';
+
+const MapPicker = dynamic(() => import('@/components/shared/MapPicker'), { 
+  ssr: false,
+  loading: () => <CircularProgress size={20} />
+});
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -40,6 +46,7 @@ export default function ProfilePage() {
   const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
 
   // Password state
   const [passModal, setPassModal] = useState(false);
@@ -190,7 +197,15 @@ export default function ProfilePage() {
                       onClick={handleGetLocation}
                       disabled={gettingLocation}
                     >
-                      Update
+                      Capture GPS
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      color="secondary"
+                      startIcon={<LocationOn />}
+                      onClick={() => setMapOpen(true)}
+                    >
+                      Pick on Map
                     </Button>
                     {location && (
                       <Button 
@@ -203,6 +218,19 @@ export default function ProfilePage() {
                       </Button>
                     )}
                   </Stack>
+
+                  <MapPicker 
+                    open={mapOpen} 
+                    onClose={() => setMapOpen(false)}
+                    onSelect={(lat, lng) => {
+                      setLocation({ 
+                        lat: parseFloat(lat.toFixed(6)), 
+                        lng: parseFloat(lng.toFixed(6)) 
+                      });
+                      showToast('Location selected from map', 'success');
+                    }}
+                    initialLocation={location}
+                  />
                   {accuracy && (
                     <Chip 
                       label={`GPS Accuracy: ±${Math.round(accuracy)} meters`} 

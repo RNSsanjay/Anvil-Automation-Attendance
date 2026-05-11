@@ -1,44 +1,51 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Box, 
+  Typography, 
   List, 
-  ListItem, 
+  ListItemButton, 
   ListItemIcon, 
   ListItemText, 
-  Typography,
-  Divider,
-  Button
+  Divider, 
+  Button 
 } from '@mui/material';
 import { 
   Dashboard, 
-  People, 
-  Assignment, 
   QrCode, 
-  Logout,
-  Person
+  History, 
+  Logout, 
+  Person 
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
 import { signOut } from 'next-auth/react';
+import { motion } from 'framer-motion';
 
 const navItems = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: <Dashboard /> },
-  { label: 'Employees', path: '/admin/employees', icon: <People /> },
-  { label: 'Attendance', path: '/admin/attendance', icon: <Assignment /> },
-  { label: 'QR Code', path: '/admin/qr', icon: <QrCode /> },
+  { label: 'Generate QR', path: '/admin/qr', icon: <QrCode /> },
+  { label: 'Attendance', path: '/admin/attendance', icon: <History /> },
   { label: 'Profile', path: '/admin/profile', icon: <Person /> },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onMobileNavigate?: () => void;
+}
+
+export default function Sidebar({ onMobileNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleNavigate = (path: string) => {
+    router.push(path);
+    if (onMobileNavigate) onMobileNavigate();
+  };
 
   return (
-    <Box className="w-64 h-full bg-card border-r border-border flex flex-col p-4">
+    <Box className="w-full md:w-64 h-full bg-card border-r border-border flex flex-col p-4 overflow-y-auto">
       <Box className="p-4 mb-8">
-        <Typography variant="h5" className="text-primary font-bold">Anvil</Typography>
+        <Typography variant="h5" className="text-primary font-bold">Presenz</Typography>
         <Typography variant="caption" className="text-text-secondary">Attendance System</Typography>
       </Box>
 
@@ -46,32 +53,47 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.path;
           return (
-            <ListItem 
-              key={item.path} 
-              disablePadding
-              component={Link}
-              href={item.path}
-              className="relative rounded-lg overflow-hidden"
+            <ListItemButton 
+              key={item.path}
+              onClick={() => handleNavigate(item.path)}
+              selected={isActive}
+              className={`rounded-xl relative overflow-hidden transition-all duration-200 ${
+                isActive 
+                  ? 'bg-primary/10 text-primary shadow-sm' 
+                  : 'text-text-secondary hover:bg-gray-100'
+              }`}
+              sx={{
+                mb: 1,
+                py: 1.5,
+                px: 2,
+                '&.Mui-selected': {
+                  backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                  }
+                }
+              }}
             >
-              <Box className="w-full flex items-center p-3 z-10">
-                <ListItemIcon className={isActive ? 'text-primary' : 'text-text-secondary'}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.label} 
-                  className={isActive ? 'text-primary font-semibold' : 'text-text-secondary'}
-                />
-              </Box>
+              <ListItemIcon className={`min-w-[40px] ${isActive ? 'text-primary' : 'text-text-secondary'}`}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText 
+                primary={item.label} 
+                primaryTypographyProps={{ 
+                  fontWeight: isActive ? 600 : 400,
+                  fontSize: '0.95rem'
+                }}
+              />
               
               {isActive && (
                 <motion.div 
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 bg-violet-50 border-r-4 border-primary"
-                  initial={false}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  layoutId="sidebar-active-indicator"
+                  className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                 />
               )}
-            </ListItem>
+            </ListItemButton>
           );
         })}
       </List>
@@ -82,7 +104,7 @@ export default function Sidebar() {
         fullWidth 
         startIcon={<Logout />} 
         onClick={() => signOut({ callbackUrl: '/admin/login' })}
-        className="text-text-secondary hover:text-red-600 hover:bg-red-50 justify-start px-4 py-3"
+        className="text-text-secondary hover:text-red-600 hover:bg-red-50 justify-start px-4 py-3 rounded-xl transition-colors"
       >
         Logout
       </Button>

@@ -3,7 +3,7 @@ import "./globals.css";
 import AppProviders from "@/components/shared/AppProviders";
 
 export const metadata: Metadata = {
-  title: "Anvil Attendance",
+  title: "Presenz",
   description: "Production-grade QR-based attendance management system",
 };
 

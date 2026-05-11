@@ -64,8 +64,8 @@ export default function AdminLogin() {
       <Container maxWidth="sm">
         <Box className="text-center mb-10">
           <SparklesText 
-            text="Anvil Attendance" 
-            className="text-6xl font-bold text-primary mb-4"
+            text="Presenz" 
+            className="text-4xl md:text-6xl font-bold text-primary mb-4"
           />
           <Typography variant="h6" className="text-text-secondary font-medium tracking-wide uppercase text-sm">
             Admin Management Portal
@@ -126,6 +126,12 @@ export default function AdminLogin() {
             </form>
           </CardContent>
         </Card>
+
+        <Box className="mt-8 text-center">
+          <Typography variant="caption" className="text-text-secondary font-medium">
+            &copy; {new Date().getFullYear()} Presenz • Powered by <strong>RNS Solutions</strong>
+          </Typography>
+        </Box>
       </Container>
     </Box>
   );
