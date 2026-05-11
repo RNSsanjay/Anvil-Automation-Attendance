@@ -54,18 +54,19 @@ export default function AdminSignup() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
+      (pos) => {
+        setLocation({ 
+          lat: pos.coords.latitude, 
+          lng: pos.coords.longitude 
         });
-        showToast('Location captured successfully', 'success');
+        showToast('High-accuracy location captured', 'success');
         setGettingLocation(false);
       },
       (error) => {
-        showToast('Location access is required to set up geo-fencing', 'error');
+        showToast('Location access is required for geo-fencing', 'error');
         setGettingLocation(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -181,7 +182,7 @@ export default function AdminSignup() {
                   {location && (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <Chip 
-                        label={`📍 Captured: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                        label={`📍 Captured: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`}
                         className="bg-green-50 text-green-700 border-green-200 font-bold"
                       />
                       <Button 

@@ -65,13 +65,14 @@ export default function ProfilePage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        showToast('Location updated from GPS', 'success');
+        showToast('High-accuracy location captured', 'success');
         setGettingLocation(false);
       },
       () => {
-        showToast('Location access denied', 'error');
+        showToast('Location access denied or timeout', 'error');
         setGettingLocation(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -170,13 +171,13 @@ export default function ProfilePage() {
                       disabled
                       size="small"
                       label="Latitude"
-                      value={location?.lat || ''}
+                      value={location?.lat?.toFixed(6) || ''}
                     />
                     <TextField 
                       disabled
                       size="small"
                       label="Longitude"
-                      value={location?.lng || ''}
+                      value={location?.lng?.toFixed(6) || ''}
                     />
                     <Button 
                       variant="outlined" 

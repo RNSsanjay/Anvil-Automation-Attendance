@@ -73,32 +73,52 @@ export default function CheckinPage() {
 
   const onSubmit = async (data: CheckinForm) => {
     setLoading(true);
-    try {
-      const response = await fetch('/api/employee/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          companyId,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        showToast('Check-in successful!', 'success');
-        localStorage.setItem('lastCheckinName', data.name);
-        localStorage.setItem('lastCheckinTime', new Date().toISOString());
-        localStorage.setItem('lastCheckinCompany', companyName);
-        router.push('/thankyou');
-      } else {
-        showToast(result.message || 'Check-in failed', 'error');
-      }
-    } catch (error) {
-      showToast('An error occurred', 'error');
-    } finally {
+    
+    // Capture location
+    if (!navigator.geolocation) {
+      showToast('Geolocation is required for attendance', 'error');
       setLoading(false);
+      return;
     }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        
+        try {
+          const response = await fetch('/api/employee/checkin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...data,
+              companyId,
+              location, // Pass location to API
+            }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            showToast('Attendance marked successfully!', 'success');
+            router.push('/thankyou');
+          } else {
+            showToast(result.message || 'Check-in failed', 'error');
+            if (result.outOfRange) {
+              router.push('/out-of-range');
+            }
+          }
+        } catch (error) {
+          showToast('An error occurred', 'error');
+        } finally {
+          setLoading(false);
+        }
+      },
+      (err) => {
+        showToast('Please enable location access to check in', 'error');
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   return (

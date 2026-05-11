@@ -56,7 +56,7 @@ export default function ScanLanding() {
         setError('Location access is required to mark attendance. Please enable location in your browser settings.');
         setLoading(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [companyId]);
 

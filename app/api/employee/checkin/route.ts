@@ -4,15 +4,39 @@ import Employee from '@/models/Employee';
 import Attendance from '@/models/Attendance';
 import { format } from 'date-fns';
 
+import Admin from '@/models/Admin';
+import { isWithinRange } from '@/lib/geofence';
+
 export async function POST(req: Request) {
   try {
-    const { companyId, name, phone, email } = await req.json();
+    const { companyId, name, phone, email, location } = await req.json();
 
-    if (!companyId || !name || !phone || !email) {
+    if (!companyId || !name || !phone || !email || !location) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
     }
 
     await dbConnect();
+
+    // 0. Geo-fence check
+    const admin = await Admin.findOne({ companyId });
+    if (!admin) {
+      return NextResponse.json({ message: 'Invalid company workspace' }, { status: 404 });
+    }
+
+    const inRange = isWithinRange(
+      location.lat, 
+      location.lng, 
+      admin.location.lat, 
+      admin.location.lng,
+      100 // 100 meters radius
+    );
+
+    if (!inRange) {
+      return NextResponse.json({ 
+        message: 'You are outside the office geo-fence. Please move closer to check in.',
+        outOfRange: true 
+      }, { status: 403 });
+    }
 
     // 1. Find or create employee
     let employee = await Employee.findOne({ companyId, email });
