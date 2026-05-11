@@ -100,6 +100,9 @@ export default function CheckinPage() {
 
           if (response.ok) {
             showToast('Attendance marked successfully!', 'success');
+            localStorage.setItem('lastCheckinName', data.name);
+            localStorage.setItem('lastCheckinTime', result.checkInTime);
+            localStorage.setItem('lastCheckinCompany', companyName);
             router.push('/thankyou');
           } else {
             showToast(result.message || 'Check-in failed', 'error');

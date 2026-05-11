@@ -45,7 +45,27 @@ export default function Sidebar({ onMobileNavigate }: SidebarProps) {
   return (
     <Box className="w-full md:w-64 h-full bg-card border-r border-border flex flex-col p-4 overflow-y-auto">
       <Box className="p-4 mb-8">
-        <Typography variant="h5" className="text-primary font-bold">Presenz</Typography>
+        <motion.div
+          initial="initial"
+          animate="animate"
+          whileHover="hover"
+          className="cursor-default"
+        >
+          <Typography variant="h5" className="text-primary font-bold flex overflow-hidden">
+            {"Presenz".split("").map((char, index) => (
+              <motion.span
+                key={index}
+                variants={{
+                  initial: { y: 20, opacity: 0 },
+                  animate: { y: 0, opacity: 1, transition: { delay: index * 0.05 } },
+                  hover: { y: -5, color: '#9333ea', transition: { type: 'spring', stiffness: 300 } }
+                }}
+              >
+                {char}
+              </motion.span>
+            ))}
+          </Typography>
+        </motion.div>
         <Typography variant="caption" className="text-text-secondary">Attendance System</Typography>
       </Box>
 

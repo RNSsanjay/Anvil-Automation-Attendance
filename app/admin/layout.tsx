@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import Sidebar from '@/components/admin/Sidebar';
+import { motion } from 'framer-motion';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -65,7 +66,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <IconButton onClick={handleDrawerToggle} className="mr-2">
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" className="text-primary font-bold">Presenz</Typography>
+            <motion.div initial="initial" animate="animate">
+              <Typography variant="h6" className="text-primary font-bold flex overflow-hidden">
+                {"Presenz".split("").map((char, index) => (
+                  <motion.span
+                    key={index}
+                    variants={{
+                      initial: { y: 10, opacity: 0 },
+                      animate: { y: 0, opacity: 1, transition: { delay: index * 0.05 } }
+                    }}
+                  >
+                    {char}
+                  </motion.span>
+                ))}
+              </Typography>
+            </motion.div>
           </Box>
         )}
 

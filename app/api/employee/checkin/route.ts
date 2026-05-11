@@ -3,9 +3,9 @@ import dbConnect from '@/lib/mongodb';
 import Employee from '@/models/Employee';
 import Attendance from '@/models/Attendance';
 import { format } from 'date-fns';
-
 import Admin from '@/models/Admin';
 import { isWithinRange } from '@/lib/geofence';
+import { sendCheckinNotification } from '@/lib/email';
 
 export async function POST(req: Request) {
   try {
@@ -46,7 +46,8 @@ export async function POST(req: Request) {
     }
 
     // 2. Check if already checked in today
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const checkInTime = new Date();
+    const today = format(checkInTime, 'yyyy-MM-dd');
     const existingAttendance = await Attendance.findOne({
       companyId,
       employeeId: employee._id,
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Create attendance record
-    const month = format(new Date(), 'yyyy-MM');
+    const month = format(checkInTime, 'yyyy-MM');
     const attendance = new Attendance({
       companyId,
       employeeId: employee._id,
@@ -66,12 +67,25 @@ export async function POST(req: Request) {
       employeeEmail: email,
       date: today,
       month,
-      checkInTime: new Date(),
+      checkInTime: checkInTime,
     });
 
     await attendance.save();
 
-    return NextResponse.json({ message: 'Attendance marked successfully' }, { status: 201 });
+    // 4. Send Notification (Optional)
+    const formattedTime = format(checkInTime, 'hh:mm aa');
+    if (email) {
+      try {
+        await sendCheckinNotification(email, name, formattedTime, admin.companyName);
+      } catch (err) {
+        console.error('Failed to send check-in email:', err);
+      }
+    }
+
+    return NextResponse.json({ 
+      message: 'Attendance marked successfully',
+      checkInTime: formattedTime 
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Check-in error:', error);
     return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });

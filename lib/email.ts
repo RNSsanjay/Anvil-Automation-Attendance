@@ -58,3 +58,38 @@ export const sendPasswordResetOTP = async (email: string, otp: string) => {
 
   return transporter.sendMail(mailOptions);
 };
+
+export const sendCheckinNotification = async (email: string, name: string, time: string, company: string) => {
+  const mailOptions = {
+    from: `"Presenz" <${process.env.DEFAULT_FROM_EMAIL}>`,
+    to: email,
+    subject: `Check-in Successful - ${company}`,
+    html: `
+      <div style="font-family: 'DM Sans', sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #EDE9FE; border-radius: 12px; overflow: hidden;">
+        <div style="background-color: #7C3AED; height: 8px;"></div>
+        <div style="padding: 40px; background-color: #FFFFFF;">
+          <h1 style="color: #0F0A1E; font-size: 24px; font-weight: 700; margin-bottom: 20px;">Attendance Marked ✓</h1>
+          <p style="color: #6B7280; font-size: 16px; margin-bottom: 30px;">Hello <strong>${name}</strong>, your attendance has been recorded successfully.</p>
+          <div style="background-color: #FAFAFF; border: 1px solid #EDE9FE; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+            <table style="width: 100%;">
+              <tr>
+                <td style="color: #6B7280; font-size: 14px; padding-bottom: 8px;">Company</td>
+                <td style="color: #0F0A1E; font-size: 14px; font-weight: 600; text-align: right; padding-bottom: 8px;">${company}</td>
+              </tr>
+              <tr>
+                <td style="color: #6B7280; font-size: 14px;">Check-in Time</td>
+                <td style="color: #0F0A1E; font-size: 14px; font-weight: 600; text-align: right;">${time}</td>
+              </tr>
+            </table>
+          </div>
+          <p style="color: #6B7280; font-size: 14px;">Have a productive day!</p>
+        </div>
+        <div style="padding: 20px; background-color: #FAFAFF; border-top: 1px solid #EDE9FE; text-align: center;">
+          <p style="color: #6B7280; font-size: 12px; margin: 0;">Powered by <strong>RNS Solutions</strong></p>
+        </div>
+      </div>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+};

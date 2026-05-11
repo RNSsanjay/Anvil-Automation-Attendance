@@ -48,7 +48,11 @@ export default function ThankYouPage() {
   useEffect(() => {
     setName(localStorage.getItem('lastCheckinName') || 'there');
     const t = localStorage.getItem('lastCheckinTime');
-    if (t) setTime(format(new Date(t), 'hh:mm aa'));
+    if (t) {
+      setTime(t);
+    } else {
+      setTime(format(new Date(), 'hh:mm aa'));
+    }
     setCompany(localStorage.getItem('lastCheckinCompany') || 'the company');
   }, []);
 

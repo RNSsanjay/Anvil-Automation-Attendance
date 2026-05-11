@@ -18,12 +18,15 @@ import {
 import StatCard from '@/components/admin/StatCard';
 import { Meteors } from '@/components/ui/meteors';
 import useSWR from 'swr';
+import { format } from 'date-fns';
+import { CircularProgress, Chip } from '@mui/material';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { data: stats, error } = useSWR('/api/admin/dashboard/stats', fetcher);
+  const { data: stats } = useSWR('/api/admin/dashboard/stats', fetcher);
+  const { data: recentAttendance, isLoading: isLoadingRecent } = useSWR('/api/admin/attendance/today', fetcher);
 
   const adminName = session?.user?.name || 'Admin';
 
@@ -78,16 +81,49 @@ export default function DashboardPage() {
         </Grid>
       </Grid>
 
-      {/* Recent Activity Table (Placeholder) */}
-      <Box>
-        <Typography variant="h5" className="font-bold mb-4 text-text-primary">
+      {/* Recent Activity Section */}
+      <Box className="space-y-4">
+        <Typography variant="h5" className="font-bold text-text-primary">
           Recent Attendance
         </Typography>
-        <Card>
+        <Card className="rounded-2xl overflow-hidden border border-violet-100 shadow-sm">
           <CardContent className="p-0">
-             <Box className="p-8 text-center text-text-secondary">
-               Attendance records will appear here as employees check in.
-             </Box>
+            {isLoadingRecent ? (
+              <Box className="p-8 text-center"><CircularProgress size={20} /></Box>
+            ) : !recentAttendance || recentAttendance.length === 0 ? (
+              <Box className="p-12 text-center text-text-secondary">
+                <Typography variant="body1">No attendance records yet today.</Typography>
+                <Typography variant="caption">Recent check-ins will appear here automatically.</Typography>
+              </Box>
+            ) : (
+              <Box className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="p-4 text-xs font-bold text-text-secondary uppercase tracking-wider">Employee</th>
+                      <th className="p-4 text-xs font-bold text-text-secondary uppercase tracking-wider">Time</th>
+                      <th className="p-4 text-xs font-bold text-text-secondary uppercase tracking-wider text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentAttendance.slice(0, 5).map((record: any) => (
+                      <tr key={record._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="p-4">
+                          <Typography variant="subtitle2" className="font-semibold">{record.employeeName}</Typography>
+                          <Typography variant="caption" className="text-text-secondary">{record.employeeEmail}</Typography>
+                        </td>
+                        <td className="p-4 text-text-secondary">
+                          {format(new Date(record.checkInTime), 'hh:mm aa')}
+                        </td>
+                        <td className="p-4 text-right">
+                          <Chip label="Present" size="small" color="success" variant="outlined" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Box>
+            )}
           </CardContent>
         </Card>
       </Box>
