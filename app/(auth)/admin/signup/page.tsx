@@ -179,10 +179,19 @@ export default function AdminSignup() {
                   </Button>
                   
                   {location && (
-                    <Chip 
-                      label={`📍 Captured: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
-                      className="bg-green-50 text-green-700 border-green-200 font-bold"
-                    />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Chip 
+                        label={`📍 Captured: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                        className="bg-green-50 text-green-700 border-green-200 font-bold"
+                      />
+                      <Button 
+                        size="small" 
+                        color="secondary"
+                        onClick={() => window.open(`https://www.google.com/maps?q=${location.lat},${location.lng}`, '_blank')}
+                      >
+                        Verify on Map
+                      </Button>
+                    </Stack>
                   )}
                 </Box>
 

@@ -12,6 +12,8 @@ const AdminSchema = new Schema({
   verified: { type: Boolean, default: false },
   otpCode: { type: String },
   otpExpiry: { type: Date },
+  resetPasswordOtp: { type: String },
+  resetPasswordExpiry: { type: Date },
   createdAt: { type: Date, default: Date.now },
 });
 

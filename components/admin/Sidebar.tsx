@@ -18,7 +18,8 @@ import {
   People, 
   Assignment, 
   QrCode, 
-  Logout 
+  Logout,
+  Person
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { signOut } from 'next-auth/react';
@@ -28,6 +29,7 @@ const navItems = [
   { label: 'Employees', path: '/admin/employees', icon: <People /> },
   { label: 'Attendance', path: '/admin/attendance', icon: <Assignment /> },
   { label: 'QR Code', path: '/admin/qr', icon: <QrCode /> },
+  { label: 'Profile', path: '/admin/profile', icon: <Person /> },
 ];
 
 export default function Sidebar() {
