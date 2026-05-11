@@ -1,0 +1,215 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { 
+  Box, 
+  Container, 
+  Typography, 
+  TextField, 
+  Button, 
+  Card, 
+  CardContent,
+  CircularProgress,
+  Chip,
+  Stack
+} from '@mui/material';
+import { LocationOn } from '@mui/icons-material';
+import ShimmerButton from '@/components/ui/shimmer-button';
+import { useToast } from '@/components/shared/ToastProvider';
+import SparklesText from '@/components/ui/sparkles-text';
+
+const signupSchema = z.object({
+  companyName: z.string().min(2, 'Company name is required'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type SignupForm = z.infer<typeof signupSchema>;
+
+export default function AdminSignup() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+
+  const { register, handleSubmit, formState: { errors } } = useForm<SignupForm>({
+    resolver: zodResolver(signupSchema),
+  });
+
+  const handleGetLocation = () => {
+    setGettingLocation(true);
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      setGettingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        showToast('Location captured successfully', 'success');
+        setGettingLocation(false);
+      },
+      (error) => {
+        showToast('Location access is required to set up geo-fencing', 'error');
+        setGettingLocation(false);
+      }
+    );
+  };
+
+  const onSubmit = async (data: SignupForm) => {
+    if (!location) {
+      showToast('Please capture your company location first', 'warning');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          location,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        showToast('Signup successful! Check your email for OTP.', 'success');
+        localStorage.setItem('pendingVerifyEmail', data.email);
+        router.push('/verify-email');
+      } else {
+        showToast(result.message || 'Signup failed', 'error');
+      }
+    } catch (error) {
+      showToast('An error occurred. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box className="min-h-screen flex items-center justify-center bg-white hero-grain p-4">
+      <Container maxWidth="sm">
+        <Box className="text-center mb-10">
+          <SparklesText 
+            text="Join Anvil" 
+            className="text-6xl font-bold text-primary mb-4"
+          />
+          <Typography variant="h6" className="text-text-secondary font-medium tracking-wide uppercase text-sm">
+            Set up your company workspace
+          </Typography>
+        </Box>
+        
+        <Card className="shadow-2xl border border-violet-100 rounded-3xl overflow-hidden">
+          <CardContent className="p-10">
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <Stack spacing={3}>
+                <TextField
+                  fullWidth
+                  label="Company Name"
+                  {...register('companyName')}
+                  error={!!errors.companyName}
+                  helperText={errors.companyName?.message}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                />
+                
+                <TextField
+                  fullWidth
+                  label="Admin Email"
+                  type="email"
+                  {...register('email')}
+                  error={!!errors.email}
+                  helperText={errors.email?.message}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                />
+                
+                <Stack direction="row" spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Password"
+                    type="password"
+                    {...register('password')}
+                    error={!!errors.password}
+                    helperText={errors.password?.message}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                  
+                  <TextField
+                    fullWidth
+                    label="Confirm"
+                    type="password"
+                    {...register('confirmPassword')}
+                    error={!!errors.confirmPassword}
+                    helperText={errors.confirmPassword?.message}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                  />
+                </Stack>
+
+                <Box className="flex flex-col items-center gap-4 py-2">
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    size="large"
+                    startIcon={gettingLocation ? <CircularProgress size={20} /> : <LocationOn />}
+                    onClick={handleGetLocation}
+                    disabled={gettingLocation}
+                    sx={{ 
+                      borderRadius: '12px',
+                      height: '56px',
+                      borderWidth: '2px',
+                      '&:hover': { borderWidth: '2px' }
+                    }}
+                  >
+                    {location ? 'Update Location' : 'Capture Office Location'}
+                  </Button>
+                  
+                  {location && (
+                    <Chip 
+                      label={`📍 Captured: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
+                      className="bg-green-50 text-green-700 border-green-200 font-bold"
+                    />
+                  )}
+                </Box>
+
+                <ShimmerButton 
+                  type="submit" 
+                  className="w-full h-14 text-lg font-bold shadow-lg"
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={24} color="inherit" /> : 'CREATE WORKSPACE'}
+                </ShimmerButton>
+
+                <Box className="text-center pt-2">
+                  <Typography variant="body2" className="text-text-secondary">
+                    Already have an account?{' '}
+                    <Button 
+                      onClick={() => router.push('/admin/login')}
+                      className="text-primary font-bold normal-case p-0 min-w-0"
+                    >
+                      Login here
+                    </Button>
+                  </Typography>
+                </Box>
+              </Stack>
+            </form>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
+  );
+}
