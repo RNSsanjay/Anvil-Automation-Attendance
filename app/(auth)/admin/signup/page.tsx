@@ -55,18 +55,19 @@ export default function AdminSignup() {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        const { latitude, longitude, accuracy: acc } = pos.coords;
         setLocation({ 
-          lat: pos.coords.latitude, 
-          lng: pos.coords.longitude 
+          lat: latitude, 
+          lng: longitude 
         });
-        showToast('High-accuracy location captured', 'success');
+        showToast(`High-accuracy location captured (±${Math.round(acc)}m)`, acc < 50 ? 'success' : 'warning');
         setGettingLocation(false);
       },
       (error) => {
         showToast('Location access is required for geo-fencing', 'error');
         setGettingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 

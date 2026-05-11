@@ -55,8 +55,11 @@ export default function ProfilePage() {
     }
   }, [admin]);
 
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+
   const handleGetLocation = () => {
     setGettingLocation(true);
+    setAccuracy(null);
     if (!navigator.geolocation) {
       showToast('Geolocation not supported', 'error');
       setGettingLocation(false);
@@ -64,15 +67,17 @@ export default function ProfilePage() {
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        showToast('High-accuracy location captured', 'success');
+        const { latitude, longitude, accuracy: acc } = pos.coords;
+        setLocation({ lat: latitude, lng: longitude });
+        setAccuracy(acc);
+        showToast(`Location captured (Accuracy: ${Math.round(acc)}m)`, acc < 50 ? 'success' : 'warning');
         setGettingLocation(false);
       },
       () => {
         showToast('Location access denied or timeout', 'error');
         setGettingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -198,6 +203,15 @@ export default function ProfilePage() {
                       </Button>
                     )}
                   </Stack>
+                  {accuracy && (
+                    <Chip 
+                      label={`GPS Accuracy: ±${Math.round(accuracy)} meters`} 
+                      size="small" 
+                      color={accuracy < 30 ? "success" : "warning"}
+                      variant="outlined"
+                      sx={{ mt: 1, mb: 1, fontWeight: 'bold' }}
+                    />
+                  )}
                   <Typography variant="caption" className="mt-2 block text-violet-400">
                     This location defines the 100m radius for employee check-ins.
                   </Typography>
