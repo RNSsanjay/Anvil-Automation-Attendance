@@ -5,6 +5,8 @@ const EmployeeSchema = new Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true },
   email: { type: String, required: true },
+  faceProfile: { type: String }, // Base64 or URL of the reference face
+  biometricId: { type: String }, // For WebAuthn/Fingerprint
   createdAt: { type: Date, default: Date.now },
 });
 

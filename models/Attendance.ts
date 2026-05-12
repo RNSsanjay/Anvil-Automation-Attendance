@@ -2,12 +2,16 @@ import mongoose, { Schema, model, models } from 'mongoose';
 
 const AttendanceSchema = new Schema({
   companyId: { type: String, required: true },
+  companyName: { type: String, required: true },
   employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
   employeeName: { type: String, required: true },
   employeeEmail: { type: String, required: true },
   date: { type: String, required: true }, // "YYYY-MM-DD"
   month: { type: String, required: true }, // "YYYY-MM"
   checkInTime: { type: Date, default: Date.now },
+  formattedTime: { type: String }, // "10:30:45 AM"
+  checkInPhoto: { type: String }, // snapshot taken during check-in
+  verificationMethod: { type: String, enum: ['face', 'biometric', 'manual'], default: 'face' },
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import dbConnect from '@/lib/mongodb';
 import Employee from '@/models/Employee';
 import Attendance from '@/models/Attendance';
-import { format } from 'date-fns';
+import { getISTToday, getISTMonth } from '@/lib/ist';
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     }
 
     const companyId = session.user.companyId;
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = getISTToday();
 
     await dbConnect();
 
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const absentToday = Math.max(0, totalEmployees - presentToday);
     
     // Simple monthly rate calculation
-    const thisMonth = format(new Date(), 'yyyy-MM');
+    const thisMonth = getISTMonth();
     const monthlyAttendance = await Attendance.countDocuments({ companyId, month: thisMonth });
     const monthlyRate = totalEmployees > 0 
       ? Math.round((monthlyAttendance / (totalEmployees * 30)) * 100) 

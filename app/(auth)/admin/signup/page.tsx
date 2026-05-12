@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -22,9 +24,9 @@ import ShimmerButton from '@/components/ui/shimmer-button';
 import { useToast } from '@/components/shared/ToastProvider';
 import SparklesText from '@/components/ui/sparkles-text';
 
-import dynamic from 'next/dynamic';
+import nextDynamic from 'next/dynamic';
 
-const MapPicker = dynamic(() => import('@/components/shared/MapPicker'), { 
+const MapPicker = nextDynamic(() => import('@/components/shared/MapPicker'), { 
   ssr: false,
   loading: () => <CircularProgress size={20} />
 });

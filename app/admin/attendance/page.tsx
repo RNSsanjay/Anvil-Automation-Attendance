@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
@@ -11,7 +13,7 @@ import {
   Chip
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
-import { History, Refresh } from '@mui/icons-material';
+import { History, Refresh, AccountCircle } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { format } from 'date-fns';
@@ -25,20 +27,44 @@ export default function TodayAttendancePage() {
   });
 
   const columns: GridColDef[] = [
+    { field: 'companyName', headerName: 'Company', width: 150 },
+    { 
+      field: 'checkInPhoto', 
+      headerName: 'Verification Photo', 
+      width: 150,
+      renderCell: (params) => (
+        <Box className="p-1">
+          {params.value ? (
+            <img 
+              src={params.value} 
+              alt="Verification" 
+              className="w-10 h-10 rounded-full object-cover border-2 border-primary/20"
+              onClick={() => window.open(params.value, '_blank')}
+            />
+          ) : (
+            <AccountCircle className="text-gray-300" />
+          )}
+        </Box>
+      )
+    },
     { field: 'employeeName', headerName: 'Employee Name', flex: 1 },
-    { field: 'employeeEmail', headerName: 'Email', flex: 1 },
     { 
       field: 'checkInTime', 
       headerName: 'Check-in Time', 
-      width: 200,
-      valueGetter: (params: any) => format(new Date(params), 'hh:mm:ss aa')
+      width: 180,
+      valueGetter: (params: any) => params ? format(new Date(params), 'hh:mm:ss aa') : 'N/A'
     },
     {
-      field: 'status',
-      headerName: 'Status',
+      field: 'verificationMethod',
+      headerName: 'Method',
       width: 120,
-      renderCell: () => (
-        <Chip label="Present" color="success" size="small" variant="outlined" />
+      renderCell: (params) => (
+        <Chip 
+          label={params.value || 'Face'} 
+          size="small" 
+          variant="outlined" 
+          color={params.value === 'biometric' ? 'primary' : 'secondary'}
+        />
       ),
     },
   ];

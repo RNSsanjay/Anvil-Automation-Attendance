@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
@@ -8,15 +10,16 @@ import {
   CardContent, 
   TextField, 
   Button, 
-  Stack, 
-  Divider,
   CircularProgress,
+  Stack,
+  Grid,
+  Divider,
+  Paper,
+  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
-  Chip,
-  Grid
+  DialogActions
 } from '@mui/material';
 import { 
   Person, 
@@ -24,83 +27,103 @@ import {
   LocationOn, 
   Lock, 
   CheckCircle,
-  GpsFixed
+  GpsFixed,
+  Map,
+  Dashboard
 } from '@mui/icons-material';
+import { useSession } from 'next-auth/react';
+import nextDynamic from 'next/dynamic';
 import { useToast } from '@/components/shared/ToastProvider';
 import ShimmerButton from '@/components/ui/shimmer-button';
-import useSWR from 'swr';
-import dynamic from 'next/dynamic';
 
-const MapPicker = dynamic(() => import('@/components/shared/MapPicker'), { 
+const MapPicker = nextDynamic(() => import('@/components/shared/MapPicker'), { 
   ssr: false,
-  loading: () => <CircularProgress size={20} />
+  loading: () => <Box className="h-64 flex items-center justify-center bg-gray-50 rounded-xl border border-dashed"><CircularProgress size={20} /></Box>
 });
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
 export default function ProfilePage() {
-  const { data: admin, mutate, isLoading } = useSWR('/api/admin/profile', fetcher);
+  const { data: session, update } = useSession();
   const { showToast } = useToast();
   
   const [companyName, setCompanyName] = useState('');
   const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [gettingLocation, setGettingLocation] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Password state
+  // Password State
   const [passModal, setPassModal] = useState(false);
   const [otpStep, setOtpStep] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [passLoading, setPassLoading] = useState(false);
 
   useEffect(() => {
-    if (admin) {
-      setCompanyName(admin.companyName);
-      setLocation(admin.location);
+    setMounted(true);
+    async function fetchProfile() {
+      try {
+        const res = await fetch('/api/admin/profile');
+        const data = await res.json();
+        if (res.ok) {
+          setCompanyName(data.companyName || '');
+          if (data.location) {
+            setLocation(data.location);
+          }
+        }
+      } catch (e) {
+        showToast('Failed to load profile', 'error');
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [admin]);
-
-  const [accuracy, setAccuracy] = useState<number | null>(null);
+    fetchProfile();
+  }, [showToast]);
 
   const handleGetLocation = () => {
     setGettingLocation(true);
-    setAccuracy(null);
-    if (!navigator.geolocation) {
-      showToast('Geolocation not supported', 'error');
-      setGettingLocation(false);
-      return;
-    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude, accuracy: acc } = pos.coords;
-        setLocation({ lat: latitude, lng: longitude });
-        setAccuracy(acc);
-        showToast(`Location captured (Accuracy: ${Math.round(acc)}m)`, acc < 50 ? 'success' : 'warning');
+        setLocation({ 
+          lat: parseFloat(pos.coords.latitude.toFixed(6)), 
+          lng: parseFloat(pos.coords.longitude.toFixed(6)) 
+        });
+        setAccuracy(pos.coords.accuracy);
+        setGettingLocation(false);
+        showToast('Location captured successfully', 'success');
+      },
+      (err) => {
+        showToast('Permission denied or timeout', 'error');
         setGettingLocation(false);
       },
-      () => {
-        showToast('Location access denied or timeout', 'error');
-        setGettingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000 }
     );
   };
 
   const handleSaveProfile = async () => {
+    if (!companyName) {
+      showToast('Company name is required', 'error');
+      return;
+    }
+    if (!location) {
+      showToast('Please set a location for geo-fencing', 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch('/api/admin/profile', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyName, location }),
       });
       if (res.ok) {
         showToast('Profile updated successfully', 'success');
-        mutate();
+        await update();
       } else {
-        showToast('Update failed', 'error');
+        showToast('Failed to update profile', 'error');
       }
     } catch (e) {
       showToast('Error saving profile', 'error');
@@ -112,12 +135,12 @@ export default function ProfilePage() {
   const handleRequestOtp = async () => {
     setPassLoading(true);
     try {
-      const res = await fetch('/api/admin/profile/password', { method: 'POST' });
+      const res = await fetch('/api/admin/profile/password/otp', { method: 'POST' });
       if (res.ok) {
-        showToast('OTP sent to your email', 'success');
         setOtpStep(true);
+        showToast('Verification code sent to your email', 'success');
       } else {
-        showToast('Failed to send OTP', 'error');
+        showToast('Failed to send code', 'error');
       }
     } catch (e) {
       showToast('Error', 'error');
@@ -127,14 +150,14 @@ export default function ProfilePage() {
   };
 
   const handleUpdatePassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      showToast('Password must be at least 6 characters', 'warning');
+    if (otpCode.length !== 6) {
+      showToast('Enter a valid 6-digit code', 'error');
       return;
     }
     setPassLoading(true);
     try {
       const res = await fetch('/api/admin/profile/password', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otpCode, newPassword }),
       });
@@ -154,147 +177,156 @@ export default function ProfilePage() {
     }
   };
 
+  if (!mounted) return null;
   if (isLoading) return <Box className="p-8 text-center"><CircularProgress /></Box>;
 
   return (
-    <Box className="space-y-8 max-w-4xl">
-      <Typography variant="h4" className="font-bold text-text-primary">Admin Profile</Typography>
+    <Box className="space-y-8 max-w-6xl mx-auto">
+      <Box className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <Box>
+          <Typography variant="h4" className="font-bold text-text-primary">Admin Profile</Typography>
+          <Typography variant="body2" className="text-text-secondary">Manage your company workspace and geo-fencing</Typography>
+        </Box>
+      </Box>
 
       <Grid container spacing={4}>
-        <Grid item xs={12} md={7}>
-          <Card className="rounded-2xl">
-            <CardContent className="p-8">
-              <Typography variant="h6" className="font-bold mb-6 flex items-center gap-2">
-                <Business className="text-primary" /> Company Settings
-              </Typography>
+        <Grid item xs={12} md={8}>
+          <Card className="rounded-3xl shadow-sm border border-violet-100 overflow-hidden">
+            <Box className="bg-primary/5 p-6 border-b border-primary/10">
+               <Typography variant="h6" className="font-bold flex items-center gap-2 text-primary">
+                 <Business /> Company Identity
+               </Typography>
+            </Box>
+            <CardContent className="p-8 space-y-8">
+              <TextField 
+                fullWidth
+                label="Company Name"
+                variant="outlined"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+              />
               
-              <Stack spacing={4}>
-                <TextField 
-                  fullWidth
-                  label="Company Name"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                />
-                
-                <Box>
-                  <Typography variant="body2" className="text-text-secondary mb-2">Geo-fence Location</Typography>
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <TextField 
-                      disabled
-                      size="small"
-                      label="Latitude"
-                      value={location?.lat?.toFixed(6) || ''}
-                    />
-                    <TextField 
-                      disabled
-                      size="small"
-                      label="Longitude"
-                      value={location?.lng?.toFixed(6) || ''}
-                    />
-                    <Button 
-                      variant="outlined" 
-                      startIcon={gettingLocation ? <CircularProgress size={20} /> : <GpsFixed />}
-                      onClick={handleGetLocation}
-                      disabled={gettingLocation}
-                    >
-                      Capture GPS
-                    </Button>
-                    <Button 
-                      variant="outlined" 
-                      color="secondary"
-                      startIcon={<LocationOn />}
-                      onClick={() => setMapOpen(true)}
-                    >
-                      Pick on Map
-                    </Button>
-                    {location && (
-                      <Button 
-                        variant="text" 
-                        color="secondary"
-                        onClick={() => window.open(`https://www.google.com/maps?q=${location.lat},${location.lng}`, '_blank')}
-                        className="text-xs"
-                      >
-                        View on Map
-                      </Button>
-                    )}
-                  </Stack>
+              <Divider />
 
-                  <MapPicker 
-                    open={mapOpen} 
-                    onClose={() => setMapOpen(false)}
-                    onSelect={(lat, lng) => {
-                      setLocation({ 
-                        lat: parseFloat(lat.toFixed(6)), 
-                        lng: parseFloat(lng.toFixed(6)) 
-                      });
-                      showToast('Location selected from map', 'success');
-                    }}
-                    initialLocation={location}
-                  />
-                  {accuracy && (
-                    <Chip 
-                      label={`GPS Accuracy: ±${Math.round(accuracy)} meters`} 
-                      size="small" 
-                      color={accuracy < 30 ? "success" : "warning"}
-                      variant="outlined"
-                      sx={{ mt: 1, mb: 1, fontWeight: 'bold' }}
-                    />
-                  )}
-                  <Typography variant="caption" className="mt-2 block text-violet-400">
-                    This location defines the 100m radius for employee check-ins.
+              <Box className="space-y-4">
+                <Box className="flex justify-between items-center">
+                  <Typography variant="subtitle1" className="font-bold flex items-center gap-2">
+                    <LocationOn className="text-secondary" /> Geo-fencing Configuration
                   </Typography>
+                  {location && (
+                    <Button 
+                      size="small" 
+                      onClick={() => window.open(`https://www.google.com/maps?q=${location.lat},${location.lng}`, '_blank')}
+                      className="text-primary font-bold"
+                    >
+                      Verify on Google Maps
+                    </Button>
+                  )}
                 </Box>
 
-                <ShimmerButton 
-                  onClick={handleSaveProfile}
-                  className="h-12 w-full"
-                  disabled={saving}
-                >
-                  {saving ? <CircularProgress size={24} color="inherit" /> : 'SAVE CHANGES'}
-                </ShimmerButton>
-              </Stack>
+                <Grid container spacing={2}>
+                  <Grid item xs={6}>
+                    <Paper variant="outlined" className="p-4 bg-slate-50/50 rounded-xl">
+                      <Typography variant="caption" className="text-text-secondary uppercase font-bold tracking-wider">Latitude</Typography>
+                      <Typography variant="h6" className="font-mono">{location?.lat?.toFixed(6) || 'Not set'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Paper variant="outlined" className="p-4 bg-slate-50/50 rounded-xl">
+                      <Typography variant="caption" className="text-text-secondary uppercase font-bold tracking-wider">Longitude</Typography>
+                      <Typography variant="h6" className="font-mono">{location?.lng?.toFixed(6) || 'Not set'}</Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <Button 
+                    variant="contained" 
+                    fullWidth
+                    startIcon={gettingLocation ? <CircularProgress size={20} color="inherit" /> : <GpsFixed />}
+                    onClick={handleGetLocation}
+                    disabled={gettingLocation}
+                    className="h-12 rounded-xl"
+                  >
+                    Auto-Capture GPS
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    fullWidth
+                    color="secondary"
+                    startIcon={<Map />}
+                    onClick={() => setMapOpen(true)}
+                    className="h-12 rounded-xl border-2 hover:border-2"
+                  >
+                    Select on Map
+                  </Button>
+                </Stack>
+
+                <MapPicker 
+                  open={mapOpen} 
+                  onClose={() => setMapOpen(false)}
+                  onSelect={(lat, lng) => {
+                    setLocation({ 
+                      lat: parseFloat(lat.toFixed(6)), 
+                      lng: parseFloat(lng.toFixed(6)) 
+                    });
+                    showToast('Location selected from map', 'success');
+                  }}
+                  initialLocation={location}
+                />
+                
+                {accuracy && (
+                  <Chip 
+                    label={`Current Precision: ±${Math.round(accuracy)} meters`} 
+                    size="small" 
+                    color={accuracy < 30 ? "success" : "warning"}
+                    className="font-bold py-4 rounded-lg w-full"
+                    variant="filled"
+                  />
+                )}
+              </Box>
+
+              <ShimmerButton 
+                onClick={handleSaveProfile}
+                className="h-14 w-full shadow-lg shadow-primary/20"
+                disabled={saving}
+              >
+                {saving ? 'Saving Workspace...' : 'Update Profile Settings'}
+              </ShimmerButton>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={5}>
+        <Grid item xs={12} md={4}>
           <Stack spacing={4}>
-            <Card className="rounded-2xl">
-              <CardContent className="p-8">
+            <Card className="rounded-3xl border border-violet-100 shadow-sm">
+              <CardContent className="p-6">
                 <Typography variant="h6" className="font-bold mb-4 flex items-center gap-2">
-                  <Person className="text-primary" /> Account Info
+                  <Person className="text-primary" /> Admin Info
                 </Typography>
-                <Box className="space-y-4">
+                <Stack spacing={3}>
                   <Box>
-                    <Typography variant="caption" className="text-text-secondary uppercase">Email Address</Typography>
-                    <Typography variant="body1" className="font-medium">{admin?.email}</Typography>
+                    <Typography variant="caption" className="text-text-secondary uppercase">Email</Typography>
+                    <Typography variant="body1" className="font-medium">{session?.user?.email}</Typography>
                   </Box>
                   <Box>
-                    <Typography variant="caption" className="text-text-secondary uppercase">Account Status</Typography>
+                    <Typography variant="caption" className="text-text-secondary uppercase">Status</Typography>
                     <Box className="flex items-center gap-2 text-green-600 mt-1">
-                      <CheckCircle sx={{ fontSize: 16 }} /> <Typography variant="body2">Verified Admin</Typography>
+                      <CheckCircle sx={{ fontSize: 16 }} /> <Typography variant="body2" className="font-bold">Verified Admin</Typography>
                     </Box>
                   </Box>
-                </Box>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-dashed border-2 border-violet-100">
-              <CardContent className="p-8">
-                <Typography variant="h6" className="font-bold mb-4 flex items-center gap-2">
-                  <Lock className="text-primary" /> Security
-                </Typography>
-                <Typography variant="body2" className="text-text-secondary mb-4">
-                  Regularly update your password to maintain account security.
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  color="secondary" 
-                  fullWidth
-                  onClick={() => setPassModal(true)}
-                >
-                  Change Password
-                </Button>
+                  <Divider />
+                  <Button 
+                    variant="outlined" 
+                    fullWidth 
+                    startIcon={<Lock />}
+                    onClick={() => setPassModal(true)}
+                    className="rounded-xl"
+                  >
+                    Change Password
+                  </Button>
+                </Stack>
               </CardContent>
             </Card>
           </Stack>
@@ -307,13 +339,13 @@ export default function ProfilePage() {
         <DialogContent>
           {!otpStep ? (
             <Typography variant="body2" className="py-2">
-              For security, we will send a verification code to your registered email <strong>{admin?.email}</strong> before you can change your password.
+              For security, we will send a verification code to your registered email before you can change your password.
             </Typography>
           ) : (
             <Stack spacing={3} className="pt-4">
               <TextField 
                 fullWidth 
-                label="Enter 6-digit OTP" 
+                label="6-digit code" 
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
               />
@@ -331,11 +363,11 @@ export default function ProfilePage() {
           <Button onClick={() => setPassModal(false)} disabled={passLoading}>Cancel</Button>
           {!otpStep ? (
             <Button variant="contained" onClick={handleRequestOtp} disabled={passLoading}>
-              {passLoading ? <CircularProgress size={20} /> : 'Send OTP'}
+              {passLoading ? <CircularProgress size={20} color="inherit" /> : 'Send OTP'}
             </Button>
           ) : (
             <Button variant="contained" onClick={handleUpdatePassword} disabled={passLoading}>
-              {passLoading ? <CircularProgress size={20} /> : 'Update Password'}
+              {passLoading ? <CircularProgress size={20} color="inherit" /> : 'Update Password'}
             </Button>
           )}
         </DialogActions>
