@@ -5,7 +5,8 @@ const EmployeeSchema = new Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true },
   email: { type: String, required: false }, // Email is optional
-  faceProfiles: { type: [String] }, // Multiple face samples for better matching
+  faceDescriptors: { type: [[Number]] }, // Array of face descriptors (128-dimension vectors)
+  faceProfiles: { type: [String] }, // Keep for backward compatibility - stores face images
   createdAt: { type: Date, default: Date.now },
 });
 

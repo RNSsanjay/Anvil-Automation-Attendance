@@ -7,12 +7,43 @@ import { isWithinRange } from '@/lib/geofence';
 import { sendCheckinNotification } from '@/lib/email';
 import { getISTToday, getISTMonth, getISTTime, getISTDate } from '@/lib/ist';
 
+// Face matching helper - Euclidean distance calculation
+function euclideanDistance(desc1: number[], desc2: number[]): number {
+  let sum = 0;
+  for (let i = 0; i < desc1.length; i++) {
+    sum += Math.pow(desc1[i] - desc2[i], 2);
+  }
+  return Math.sqrt(sum);
+}
+
+// Find best matching face from stored descriptors
+function findBestMatch(currentDescriptor: number[], storedDescriptors: number[][]): { distance: number; isMatch: boolean } {
+  if (!storedDescriptors || storedDescriptors.length === 0) {
+    return { distance: Infinity, isMatch: false };
+  }
+
+  let minDistance = Infinity;
+  for (const stored of storedDescriptors) {
+    const distance = euclideanDistance(currentDescriptor, stored);
+    if (distance < minDistance) {
+      minDistance = distance;
+    }
+  }
+
+  // Threshold: 0.6 is standard for face recognition (lower = more similar)
+  return { distance: minDistance, isMatch: minDistance < 0.6 };
+}
+
 export async function POST(req: Request) {
   try {
-    const { companyId, name, phone, email, location, facePhotos } = await req.json();
+    const { companyId, name, phone, email, location, facePhotos, faceDescriptors } = await req.json();
 
-    if (!companyId || !name || !phone || !location || !facePhotos || facePhotos.length === 0) {
+    if (!companyId || !name || !phone || !location) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!faceDescriptors || faceDescriptors.length === 0) {
+      return NextResponse.json({ message: 'Face recognition failed. Please try again.' }, { status: 400 });
     }
 
     await dbConnect();
@@ -38,11 +69,11 @@ export async function POST(req: Request) {
       }, { status: 403 });
     }
 
-    // 1. Find or create employee
+    // 1. Find or create employee with face verification
     let employee = await Employee.findOne({ companyId, phone });
     
     if (!employee) {
-      // First time registration - store face profiles
+      // First time registration - store face descriptors and photos
       if (!name) {
         return NextResponse.json({ message: 'First-time registration requires name' }, { status: 400 });
       }
@@ -51,9 +82,30 @@ export async function POST(req: Request) {
         name, 
         phone, 
         email: email || '', // Email is optional
-        faceProfiles: facePhotos // Store all 5 face samples
+        faceDescriptors: faceDescriptors, // Store face descriptors (128-dimension vectors)
+        faceProfiles: facePhotos // Keep photos for backward compatibility
       });
       await employee.save();
+    } else {
+      // Returning employee - verify face match
+      if (employee.faceDescriptors && employee.faceDescriptors.length > 0) {
+        const matchResult = findBestMatch(faceDescriptors[0], employee.faceDescriptors);
+        
+        if (!matchResult.isMatch) {
+          return NextResponse.json({ 
+            message: 'Face verification failed. Face does not match registered profile.',
+            matchDistance: matchResult.distance.toFixed(2),
+            threshold: 0.6
+          }, { status: 403 });
+        }
+        
+        console.log(`Face matched for ${employee.name} with distance: ${matchResult.distance.toFixed(3)}`);
+      }
+      // If no descriptors stored (old data), update with new descriptors
+      if (!employee.faceDescriptors || employee.faceDescriptors.length === 0) {
+        employee.faceDescriptors = faceDescriptors;
+        await employee.save();
+      }
     }
 
     // 2. Check if already checked in today (using IST date)

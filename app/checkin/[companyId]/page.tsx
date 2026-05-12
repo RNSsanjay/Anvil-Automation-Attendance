@@ -12,19 +12,22 @@ import {
   CircularProgress,
   Paper,
   Fade,
-  LinearProgress
+  LinearProgress,
+  Chip
 } from '@mui/material';
 import { 
   AccountCircle,
   Phone,
   Email,
   CheckCircle,
-  LocationOn
+  LocationOn,
+  FaceRetouchingNatural
 } from '@mui/icons-material';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/shared/ToastProvider';
 import Webcam from 'react-webcam';
 import { getISTTime } from '@/lib/ist';
+import * as faceapi from 'face-api.js';
 
 export default function CheckinPage() {
   const { companyId } = useParams();
@@ -40,6 +43,28 @@ export default function CheckinPage() {
   const [captureProgress, setCaptureProgress] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [companyName, setCompanyName] = useState('');
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [faceQuality, setFaceQuality] = useState<number>(0);
+
+  // Load face-api.js models on mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+          faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+          faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+        ]);
+        setModelsLoaded(true);
+        console.log('Face recognition models loaded');
+      } catch (error) {
+        console.error('Error loading face models:', error);
+        showToast('Failed to load face recognition models', 'error');
+      }
+    };
+    loadModels();
+  }, [showToast]);
 
   // Check location on mount
   useEffect(() => {
@@ -54,9 +79,9 @@ export default function CheckinPage() {
     const savedMonth = localStorage.getItem('presenz_credentials_month');
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
     
-    if (savedEmail && savedName && savedPhone && savedMonth === currentMonth) {
-      // Credentials are valid for this month
-      setFormData({ email: savedEmail, name: savedName, phone: savedPhone });
+    if (savedName && savedPhone && savedMonth === currentMonth) {
+      // Credentials are valid for this month (email is optional)
+      setFormData({ email: savedEmail || '', name: savedName, phone: savedPhone });
       setIsRegistered(true);
     } else if (savedMonth && savedMonth !== currentMonth) {
       // New month - clear old credentials
@@ -136,39 +161,76 @@ export default function CheckinPage() {
     setStep('face-scan');
   };
 
-  // Auto-capture 5 photos when face detected
+  // Auto-capture with face recognition
   const startAutoCapture = useCallback(async () => {
-    if (!webcamRef.current || isCapturing) return;
+    if (!webcamRef.current || isCapturing || !modelsLoaded) {
+      if (!modelsLoaded) {
+        showToast('Face recognition models are still loading...', 'warning');
+      }
+      return;
+    }
     
     setIsCapturing(true);
     setCapturedPhotos([]);
     setCaptureProgress(0);
     const photos: string[] = [];
+    const descriptors: number[][] = [];
     
-    showToast('Keep your face steady...', 'info');
+    showToast('Detecting your face...', 'info');
 
-    for (let i = 0; i < 5; i++) {
-      await new Promise(resolve => setTimeout(resolve, 400)); // 400ms between captures
+    for (let i = 0; i < 3; i++) {
+      await new Promise(resolve => setTimeout(resolve, 600)); // 600ms between captures
+      
       const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        photos.push(imageSrc);
-        setCapturedPhotos(prev => [...prev, imageSrc]);
-        setCaptureProgress(((i + 1) / 5) * 100);
+      if (!imageSrc) continue;
+
+      try {
+        // Create image element from base64
+        const img = await faceapi.fetchImage(imageSrc);
+        
+        // Detect face and extract descriptor
+        const detection = await faceapi
+          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (detection) {
+          const quality = detection.detection.score;
+          
+          if (quality >= 0.7) {
+            photos.push(imageSrc);
+            descriptors.push(Array.from(detection.descriptor));
+            setCapturedPhotos(prev => [...prev, imageSrc]);
+            setCaptureProgress(((i + 1) / 3) * 100);
+            setFaceDetected(true);
+            setFaceQuality(quality);
+          } else {
+            showToast('Face not clear. Please improve lighting.', 'warning');
+            i--; // Retry this capture
+          }
+        } else {
+          showToast('No face detected. Please center your face.', 'warning');
+          i--; // Retry this capture
+        }
+      } catch (error) {
+        console.error('Face detection error:', error);
+        i--; // Retry on error
       }
     }
 
     setIsCapturing(false);
     
-    if (photos.length === 5) {
-      await handleCheckin(photos);
+    if (photos.length === 3 && descriptors.length === 3) {
+      await handleCheckin(photos, descriptors);
     } else {
-      showToast('Failed to capture photos. Please try again.', 'error');
+      showToast('Failed to capture clear face images. Please try again.', 'error');
       setCapturedPhotos([]);
       setCaptureProgress(0);
+      setFaceDetected(false);
     }
-  }, [isCapturing]);
+  }, [isCapturing, modelsLoaded, showToast]);
 
-  const handleCheckin = useCallback(async (facePhotos: string[]) => {
+  const handleCheckin = useCallback(async (facePhotos: string[], faceDescriptors: number[][]) => {
     setStep('processing');
     try {
       const response = await fetch('/api/employee/checkin', {
@@ -178,7 +240,8 @@ export default function CheckinPage() {
           companyId,
           ...formData,
           location,
-          facePhotos
+          facePhotos,
+          faceDescriptors // Send face descriptors for backend verification
         }),
       });
 
@@ -322,6 +385,17 @@ export default function CheckinPage() {
                     {isRegistered ? `Welcome Back, ${formData.name}!` : 'Face Registration'}
                   </Typography>
                   
+                  {!modelsLoaded && (
+                    <Paper className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                      <Box className="flex items-center justify-center gap-2">
+                        <CircularProgress size={20} className="text-orange-600" />
+                        <Typography variant="body2" className="text-orange-700 font-semibold">
+                          Loading face recognition models...
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  )}
+                  
                   {isRegistered && (
                     <Paper className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
                       <Typography variant="body2" className="text-green-700 text-center font-semibold">
@@ -363,10 +437,22 @@ export default function CheckinPage() {
                       className="w-full h-auto"
                     />
                     
+                    {faceDetected && !isCapturing && (
+                      <Box className="absolute top-4 left-4 right-4">
+                        <Chip
+                          icon={<FaceRetouchingNatural />}
+                          label={`Face Detected - Quality: ${Math.round(faceQuality * 100)}%`}
+                          color="success"
+                          size="small"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      </Box>
+                    )}
+                    
                     {captureProgress > 0 && (
                       <Box className="absolute bottom-0 left-0 right-0 bg-black/50 p-4">
                         <Typography variant="body2" className="text-white text-center mb-2">
-                          Capturing: {Math.round(captureProgress)}%
+                          Analyzing Face: {Math.round(captureProgress)}%
                         </Typography>
                         <LinearProgress 
                           variant="determinate" 
@@ -387,12 +473,17 @@ export default function CheckinPage() {
                   {capturedPhotos.length > 0 && (
                     <Box className="flex gap-2 justify-center overflow-x-auto py-2">
                       {capturedPhotos.map((photo, idx) => (
-                        <img 
-                          key={idx}
-                          src={photo} 
-                          alt={`Capture ${idx + 1}`}
-                          className="w-16 h-16 rounded-lg object-cover border-2 border-primary"
-                        />
+                        <Box key={idx} className="relative">
+                          <img 
+                            src={photo} 
+                            alt={`Capture ${idx + 1}`}
+                            className="w-16 h-16 rounded-lg object-cover border-2 border-green-500"
+                          />
+                          <CheckCircle 
+                            className="absolute -top-1 -right-1 text-green-500 bg-white rounded-full"
+                            fontSize="small"
+                          />
+                        </Box>
                       ))}
                     </Box>
                   )}
@@ -400,19 +491,20 @@ export default function CheckinPage() {
                   {!isCapturing && capturedPhotos.length === 0 && (
                     <button
                       onClick={startAutoCapture}
-                      className="w-full h-14 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2"
+                      disabled={!modelsLoaded}
+                      className={`w-full h-14 ${modelsLoaded ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400 cursor-not-allowed'} text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2`}
                     >
-                      <CheckCircle />
-                      Start Face Scan
+                      <FaceRetouchingNatural />
+                      {modelsLoaded ? 'Start Face Recognition' : 'Loading Models...'}
                     </button>
                   )}
 
                   {isCapturing && (
                     <Paper className="p-4 bg-violet-50 border border-violet-100 rounded-xl">
-                      <Typography variant="body2" className="text-center text-violet-700">
-                        📸 Capturing your face from multiple angles...
+                      <Typography variant="body2" className="text-center text-violet-700 font-semibold">
+                        🔍 Analyzing facial features...
                         <br />
-                        Please keep your face steady
+                        <span className="text-sm">Keep your face centered and well-lit</span>
                       </Typography>
                     </Paper>
                   )}
