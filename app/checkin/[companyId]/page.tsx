@@ -51,16 +51,46 @@ export default function CheckinPage() {
   useEffect(() => {
     const loadModels = async () => {
       try {
-        await Promise.all([
-          faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
-          faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-          faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-        ]);
+        console.log('Starting to load face recognition models...');
+        
+        // First check if models are accessible
+        try {
+          const checkResponse = await fetch('/api/check-models');
+          const checkData = await checkResponse.json();
+          console.log('Model availability check:', checkData);
+          
+          if (!checkData.success) {
+            console.error('Models not available:', checkData);
+            showToast('Face recognition models not available on server. Please contact admin.', 'error');
+            return;
+          }
+        } catch (checkError) {
+          console.warn('Could not verify models, continuing anyway:', checkError);
+        }
+        
+        const MODEL_URL = '/models';
+        
+        // Load all three models with error handling
+        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        console.log('✓ Face detection model loaded');
+        
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        console.log('✓ Face landmark model loaded');
+        
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        console.log('✓ Face recognition model loaded');
+        
         setModelsLoaded(true);
-        console.log('Face recognition models loaded');
+        console.log('✓ All face recognition models loaded successfully');
       } catch (error) {
-        console.error('Error loading face models:', error);
-        showToast('Failed to load face recognition models', 'error');
+        console.error('❌ Error loading face models:', error);
+        showToast('Failed to load face recognition models. Please refresh the page.', 'error');
+        
+        // Retry after 3 seconds
+        setTimeout(() => {
+          console.log('Retrying model load...');
+          loadModels();
+        }, 3000);
       }
     };
     loadModels();
