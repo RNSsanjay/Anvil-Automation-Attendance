@@ -9,15 +9,14 @@ export async function GET(req: Request) {
     const email = searchParams.get('email');
     const phone = searchParams.get('phone');
 
-    if (!companyId || (!email && !phone)) {
-      return NextResponse.json({ message: 'Missing parameters' }, { status: 400 });
+    if (!companyId || !phone) {
+      return NextResponse.json({ message: 'Company ID and phone are required' }, { status: 400 });
     }
 
     await dbConnect();
 
-    const query: any = { companyId };
+    const query: any = { companyId, phone };
     if (email) query.email = email;
-    if (phone) query.phone = phone;
 
     const employee = await Employee.findOne(query);
 
@@ -27,6 +26,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json(employee);
   } catch (error: any) {
+    console.error('Get employee info error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

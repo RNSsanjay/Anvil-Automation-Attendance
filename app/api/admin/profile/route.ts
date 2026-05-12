@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Admin from '@/models/Admin';
 
 export async function GET() {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,14 +20,15 @@ export async function GET() {
 
     return NextResponse.json(admin);
   } catch (error: any) {
+    console.error('Get profile error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PUT(req: Request) {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -45,6 +47,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(admin);
   } catch (error: any) {
+    console.error('Update profile error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

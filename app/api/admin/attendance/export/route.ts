@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Attendance from '@/models/Attendance';
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ message: `Attendance for ${month} deleted successfully` });
   } catch (error: any) {
+    console.error('Export attendance error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

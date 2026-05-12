@@ -9,9 +9,13 @@ const AttendanceSchema = new Schema({
   date: { type: String, required: true }, // "YYYY-MM-DD"
   month: { type: String, required: true }, // "YYYY-MM"
   checkInTime: { type: Date, default: Date.now },
-  formattedTime: { type: String }, // "10:30:45 AM"
-  checkInPhoto: { type: String }, // snapshot taken during check-in
-  verificationMethod: { type: String, enum: ['face', 'biometric', 'manual'], default: 'face' },
+  checkOutTime: { type: Date }, // Check-out time
+  formattedCheckInTime: { type: String }, // "10:30:45 AM"
+  formattedCheckOutTime: { type: String }, // "06:30:45 PM"
+  checkInPhotos: { type: [String] }, // Multiple snapshots for matching
+  checkOutPhotos: { type: [String] }, // Check-out verification photos
+  verificationMethod: { type: String, enum: ['face'], default: 'face' },
+  status: { type: String, enum: ['checked-in', 'checked-out'], default: 'checked-in' },
   createdAt: { type: Date, default: Date.now },
 });
 

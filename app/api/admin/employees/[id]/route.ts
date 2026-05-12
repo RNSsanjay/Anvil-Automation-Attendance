@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Employee from '@/models/Employee';
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,14 +26,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
     return NextResponse.json(employee);
   } catch (error: any) {
+    console.error('Update employee error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -49,6 +51,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
     return NextResponse.json({ message: 'Employee deleted' });
   } catch (error: any) {
+    console.error('Delete employee error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

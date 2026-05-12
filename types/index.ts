@@ -18,7 +18,7 @@ export interface Employee {
   companyId: string;
   name: string;
   phone: string;
-  email: string;
+  email?: string; // Email is now optional
   createdAt: Date;
 }
 
@@ -31,5 +31,9 @@ export interface Attendance {
   date: string;
   month: string;
   checkInTime: Date;
+  checkOutTime?: Date;
+  formattedCheckInTime?: string;
+  formattedCheckOutTime?: string;
+  status: 'checked-in' | 'checked-out';
   createdAt: Date;
 }

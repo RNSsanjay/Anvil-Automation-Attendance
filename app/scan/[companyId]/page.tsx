@@ -93,7 +93,7 @@ export default function ScanLanding() {
         Verifying Location...
       </Typography>
       <Typography variant="body2" className="text-text-secondary mt-2">
-        Please wait while we check your geo-fence status.
+        Please wait while we verify your geo-fence status for attendance.
       </Typography>
     </Box>
   );

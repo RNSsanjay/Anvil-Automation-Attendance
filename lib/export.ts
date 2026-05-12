@@ -21,11 +21,13 @@ export const exportToPDF = (data: any[], companyName: string, monthName: string,
     item.employeeEmail,
     item.date,
     new Date(item.checkInTime).toLocaleTimeString(),
+    item.checkOutTime ? new Date(item.checkOutTime).toLocaleTimeString() : '-',
+    item.status === 'checked-out' ? 'Complete' : 'Checked In'
   ]);
 
   doc.autoTable({
     startY: 40,
-    head: [['Employee Name', 'Email', 'Date', 'Check-in Time']],
+    head: [['Employee Name', 'Email', 'Date', 'Check-In', 'Check-Out', 'Status']],
     body: tableData,
     headStyles: { fillColor: [124, 58, 237] },
     alternateRowStyles: { fillColor: [250, 250, 255] },
@@ -44,7 +46,9 @@ export const exportToExcel = (data: any[], companyName: string, monthName: strin
     'Employee Name': item.employeeName,
     'Email': item.employeeEmail,
     'Date': item.date,
-    'Check-in Time': new Date(item.checkInTime).toLocaleTimeString(),
+    'Check-In Time': new Date(item.checkInTime).toLocaleTimeString(),
+    'Check-Out Time': item.checkOutTime ? new Date(item.checkOutTime).toLocaleTimeString() : '-',
+    'Status': item.status === 'checked-out' ? 'Complete' : 'Checked In'
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(tableData);
@@ -89,7 +93,9 @@ export const exportToWord = async (data: any[], companyName: string, monthName: 
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Name', bold: true })] })] }),
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Email', bold: true })] })] }),
                 new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Date', bold: true })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Time', bold: true })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Check-In', bold: true })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Check-Out', bold: true })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Status', bold: true })] })] }),
               ],
             }),
             ...data.map(item => new TableRow({
@@ -98,6 +104,8 @@ export const exportToWord = async (data: any[], companyName: string, monthName: 
                 new TableCell({ children: [new Paragraph(item.employeeEmail)] }),
                 new TableCell({ children: [new Paragraph(item.date)] }),
                 new TableCell({ children: [new Paragraph(new Date(item.checkInTime).toLocaleTimeString())] }),
+                new TableCell({ children: [new Paragraph(item.checkOutTime ? new Date(item.checkOutTime).toLocaleTimeString() : '-')] }),
+                new TableCell({ children: [new Paragraph(item.status === 'checked-out' ? 'Complete' : 'Checked In')] }),
               ],
             })),
           ],

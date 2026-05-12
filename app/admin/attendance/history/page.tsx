@@ -13,7 +13,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  CircularProgress
+  CircularProgress,
+  Chip
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { FileDownload, Warning } from '@mui/icons-material';
@@ -26,7 +27,10 @@ import { useToast } from '@/components/shared/ToastProvider';
 import { exportToPDF, exportToExcel, exportToWord } from '@/lib/export';
 import { useSession } from 'next-auth/react';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+});
 
 export default function HistoryPage() {
   const { data: session } = useSession();
@@ -36,10 +40,17 @@ export default function HistoryPage() {
   const [exporting, setExporting] = useState(false);
 
   const monthStr = selectedMonth ? format(selectedMonth, 'yyyy-MM') : '';
-  const { data: attendance, mutate, isLoading } = useSWR(
+  const { data: attendance, mutate, isLoading, error } = useSWR(
     monthStr ? `/api/admin/attendance/history?month=${monthStr}` : null, 
     fetcher
   );
+
+  React.useEffect(() => {
+    if (error) {
+      console.error('History fetch error:', error);
+      showToast('Failed to load attendance history', 'error');
+    }
+  }, [error, showToast]);
 
   const handleExport = async (formatType: 'pdf' | 'excel' | 'word') => {
     if (!attendance || attendance.length === 0) {
@@ -99,13 +110,36 @@ export default function HistoryPage() {
 
   const columns: GridColDef[] = [
     { field: 'employeeName', headerName: 'Employee Name', flex: 1 },
-    { field: 'employeeEmail', headerName: 'Email', flex: 1 },
-    { field: 'date', headerName: 'Date', width: 150 },
+    { 
+      field: 'employeeEmail', 
+      headerName: 'Email', 
+      flex: 1,
+      valueGetter: (params: any) => params || 'Not provided'
+    },
+    { field: 'date', headerName: 'Date', width: 120 },
     { 
       field: 'checkInTime', 
-      headerName: 'Time', 
-      width: 150,
+      headerName: 'Check-In', 
+      width: 120,
       valueGetter: (params: any) => format(new Date(params), 'hh:mm aa')
+    },
+    { 
+      field: 'checkOutTime', 
+      headerName: 'Check-Out', 
+      width: 120,
+      valueGetter: (params: any) => params ? format(new Date(params), 'hh:mm aa') : '-'
+    },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 120,
+      renderCell: (params) => (
+        <Chip 
+          label={params.value === 'checked-out' ? 'Complete' : 'Checked In'} 
+          size="small" 
+          color={params.value === 'checked-out' ? 'success' : 'warning'}
+        />
+      ),
     },
   ];
 

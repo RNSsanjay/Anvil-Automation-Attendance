@@ -1,14 +1,20 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Box, Container, Typography, Card, CardContent } from '@mui/material';
-import { CheckCircle } from '@mui/icons-material';
+import { Box, Container, Typography, Card, CardContent, Paper } from '@mui/material';
+import { CheckCircle, Warning } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { format } from 'date-fns';
 
 export default function ThankYouPage() {
   useEffect(() => {
+    // Only show confetti for successful check-in/check-out, not for already complete
+    const attendanceType = localStorage.getItem('lastCheckinType') || 'check-in';
+    if (attendanceType === 'complete') {
+      return; // Skip confetti if attendance already complete
+    }
+
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
@@ -43,7 +49,10 @@ export default function ThankYouPage() {
 
   const [name, setName] = React.useState('');
   const [time, setTime] = React.useState('');
+  const [checkOutTime, setCheckOutTime] = React.useState('');
   const [company, setCompany] = React.useState('');
+  const [type, setType] = React.useState('check-in');
+  const [detail, setDetail] = React.useState('');
 
   useEffect(() => {
     setName(localStorage.getItem('lastCheckinName') || 'there');
@@ -53,7 +62,13 @@ export default function ThankYouPage() {
     } else {
       setTime(format(new Date(), 'hh:mm aa'));
     }
+    const checkOut = localStorage.getItem('lastCheckoutTime');
+    if (checkOut) {
+      setCheckOutTime(checkOut);
+    }
     setCompany(localStorage.getItem('lastCheckinCompany') || 'the company');
+    setType(localStorage.getItem('lastCheckinType') || 'check-in');
+    setDetail(localStorage.getItem('lastCheckinDetail') || '');
   }, []);
 
   return (
@@ -71,7 +86,11 @@ export default function ThankYouPage() {
             }}
             className="mb-8 inline-block"
           >
-            <CheckCircle className="text-green-500 text-8xl" />
+            {type === 'complete' ? (
+              <Warning className="text-yellow-500 text-8xl" />
+            ) : (
+              <CheckCircle className="text-green-500 text-8xl" />
+            )}
           </motion.div>
 
           <motion.div
@@ -80,18 +99,64 @@ export default function ThankYouPage() {
             transition={{ delay: 0.5 }}
           >
             <Typography variant="h3" className="font-bold mb-4 text-text-primary">
-              Attendance Marked! ✓
+              {type === 'complete' 
+                ? 'Attendance Already Complete! ✓'
+                : type === 'check-in' 
+                  ? 'Check-In Successful! ✓' 
+                  : 'Check-Out Successful! ✓'
+              }
             </Typography>
             
-            <Typography variant="h5" className="text-text-secondary mb-8">
-              Thank you, <strong>{name}</strong>.
-              <br />
-              Your check-in at <strong>{time}</strong> for <strong>{company}</strong> has been recorded.
-            </Typography>
-
-            <Typography variant="body2" className="text-text-secondary opacity-60">
-              You can now close this window.
-            </Typography>
+            {type === 'complete' ? (
+              <>
+                <Typography variant="h5" className="text-text-secondary mb-4">
+                  Hello <strong>{name}</strong>,
+                </Typography>
+                <Typography variant="body1" className="text-text-secondary mb-6">
+                  {detail}
+                </Typography>
+                <Paper className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl mb-6">
+                  <Typography variant="body2" className="text-yellow-800 text-center font-semibold">
+                    ⚠️ Daily Limit Reached
+                  </Typography>
+                  <Typography variant="caption" className="text-yellow-700 text-center block mt-2">
+                    You can only check in once and check out once per day.
+                    <br />
+                    Your attendance for today is complete at <strong>{company}</strong>
+                  </Typography>
+                </Paper>
+                <Typography variant="body2" className="text-text-secondary opacity-60">
+                  See you tomorrow!
+                </Typography>
+              </>
+            ) : type === 'check-out' && checkOutTime ? (
+              <>
+                <Typography variant="h5" className="text-text-secondary mb-4">
+                  Thank you, <strong>{name}</strong>!
+                </Typography>
+                <Typography variant="body1" className="text-text-secondary mb-8">
+                  Check-In: <strong>{time}</strong>
+                  <br />
+                  Check-Out: <strong>{checkOutTime}</strong>
+                  <br />
+                  <strong>{company}</strong>
+                </Typography>
+                <Typography variant="body2" className="text-text-secondary opacity-60">
+                  Your attendance for today is now complete. See you tomorrow!
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography variant="h5" className="text-text-secondary mb-8">
+                  Thank you, <strong>{name}</strong>.
+                  <br />
+                  Your {type === 'check-in' ? 'check-in' : 'check-out'} at <strong>{time || checkOutTime}</strong> for <strong>{company}</strong> has been recorded.
+                </Typography>
+                <Typography variant="body2" className="text-text-secondary opacity-60">
+                  {type === 'check-in' ? 'Have a productive day! Remember to check out when you leave.' : 'See you tomorrow!'}
+                </Typography>
+              </>
+            )}
           </motion.div>
         </Card>
       </Container>

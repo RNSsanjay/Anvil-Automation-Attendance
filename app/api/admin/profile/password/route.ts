@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Admin from '@/models/Admin';
 import { sendPasswordResetOTP } from '@/lib/email';
@@ -7,8 +8,8 @@ import bcrypt from 'bcryptjs';
 
 export async function POST() {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,14 +26,15 @@ export async function POST() {
 
     return NextResponse.json({ message: 'OTP sent to your email' });
   } catch (error: any) {
+    console.error('Send password OTP error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PUT(req: Request) {
   try {
-    const session = await getServerSession() as any;
-    if (!session) {
+    const session = await getServerSession(authOptions) as any;
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
@@ -56,6 +58,7 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json({ message: 'Password updated successfully' });
   } catch (error: any) {
+    console.error('Update password error:', error);
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

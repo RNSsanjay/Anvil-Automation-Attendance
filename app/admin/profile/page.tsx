@@ -135,7 +135,7 @@ export default function ProfilePage() {
   const handleRequestOtp = async () => {
     setPassLoading(true);
     try {
-      const res = await fetch('/api/admin/profile/password/otp', { method: 'POST' });
+      const res = await fetch('/api/admin/profile/password', { method: 'POST' });
       if (res.ok) {
         setOtpStep(true);
         showToast('Verification code sent to your email', 'success');

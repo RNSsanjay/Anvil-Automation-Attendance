@@ -20,14 +20,25 @@ import { Edit, Delete, Search } from '@mui/icons-material';
 import useSWR from 'swr';
 import { useToast } from '@/components/shared/ToastProvider';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+});
 
 export default function EmployeesPage() {
-  const { data: employees, mutate } = useSWR('/api/admin/employees', fetcher);
+  const { data: employees, mutate, error, isLoading } = useSWR('/api/admin/employees', fetcher);
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [editEmployee, setEditEmployee] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+
+  // Show error message if fetch failed
+  React.useEffect(() => {
+    if (error) {
+      console.error('Employees fetch error:', error);
+      showToast('Failed to load employees. Please refresh the page.', 'error');
+    }
+  }, [error, showToast]);
 
   const filteredEmployees = employees?.filter((emp: any) => 
     emp.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -77,7 +88,12 @@ export default function EmployeesPage() {
 
   const columns: GridColDef[] = [
     { field: 'name', headerName: 'Name', flex: 1 },
-    { field: 'email', headerName: 'Email', flex: 1 },
+    { 
+      field: 'email', 
+      headerName: 'Email', 
+      flex: 1,
+      valueGetter: (params: any) => params || 'Not provided'
+    },
     { field: 'phone', headerName: 'Phone', width: 150 },
     { 
       field: 'createdAt', 
@@ -130,6 +146,7 @@ export default function EmployeesPage() {
           rows={filteredEmployees}
           columns={columns}
           getRowId={(row) => row._id}
+          loading={isLoading}
           pageSizeOptions={[10, 25, 50]}
           initialState={{
             pagination: { paginationModel: { pageSize: 10 } },
@@ -160,9 +177,10 @@ export default function EmployeesPage() {
           />
           <TextField
             fullWidth
-            label="Email"
+            label="Email (Optional)"
             value={editEmployee?.email || ''}
             onChange={(e) => setEditEmployee({ ...editEmployee, email: e.target.value })}
+            helperText="Email is optional but recommended for notifications"
           />
         </DialogContent>
         <DialogActions>

@@ -21,12 +21,24 @@ import useSWR from 'swr';
 import { format } from 'date-fns';
 import { CircularProgress, Chip } from '@mui/material';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+});
 
 export default function DashboardPage() {
   const { data: session } = useSession();
-  const { data: stats } = useSWR('/api/admin/dashboard/stats', fetcher);
-  const { data: recentAttendance, isLoading: isLoadingRecent } = useSWR('/api/admin/attendance/today', fetcher);
+  const { data: stats, error: statsError } = useSWR('/api/admin/dashboard/stats', fetcher);
+  const { data: recentAttendance, isLoading: isLoadingRecent, error: attendanceError } = useSWR('/api/admin/attendance/today', fetcher);
+
+  React.useEffect(() => {
+    if (statsError) {
+      console.error('Stats fetch error:', statsError);
+    }
+    if (attendanceError) {
+      console.error('Attendance fetch error:', attendanceError);
+    }
+  }, [statsError, attendanceError]);
 
   const adminName = session?.user?.name || 'Admin';
 
@@ -83,9 +95,17 @@ export default function DashboardPage() {
 
       {/* Recent Activity Section */}
       <Box className="space-y-4">
-        <Typography variant="h5" className="font-bold text-text-primary">
-          Recent Attendance
-        </Typography>
+        <Box className="flex justify-between items-center">
+          <Typography variant="h5" className="font-bold text-text-primary">
+            Recent Attendance
+          </Typography>
+          <Chip 
+            label="Daily Limit: 1 Check-In + 1 Check-Out" 
+            size="small" 
+            variant="outlined"
+            color="info"
+          />
+        </Box>
         <Card className="rounded-2xl overflow-hidden border border-violet-100 shadow-sm">
           <CardContent className="p-0">
             {isLoadingRecent ? (
@@ -110,13 +130,26 @@ export default function DashboardPage() {
                       <tr key={record._id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="p-4">
                           <Typography variant="subtitle2" className="font-semibold">{record.employeeName}</Typography>
-                          <Typography variant="caption" className="text-text-secondary">{record.employeeEmail}</Typography>
+                          <Typography variant="caption" className="text-text-secondary">
+                            {record.employeeEmail || 'No email provided'}
+                          </Typography>
                         </td>
                         <td className="p-4 text-text-secondary">
                           {format(new Date(record.checkInTime), 'hh:mm aa')}
+                          {record.checkOutTime && (
+                            <>
+                              <br />
+                              <span className="text-green-600">{format(new Date(record.checkOutTime), 'hh:mm aa')}</span>
+                            </>
+                          )}
                         </td>
                         <td className="p-4 text-right">
-                          <Chip label="Present" size="small" color="success" variant="outlined" />
+                          <Chip 
+                            label={record.status === 'checked-out' ? 'Checked Out' : 'Checked In'} 
+                            size="small" 
+                            color={record.status === 'checked-out' ? 'success' : 'primary'} 
+                            variant="outlined" 
+                          />
                         </td>
                       </tr>
                     ))}
