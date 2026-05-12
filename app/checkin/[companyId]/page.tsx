@@ -13,7 +13,8 @@ import {
   Paper,
   Fade,
   LinearProgress,
-  Chip
+  Chip,
+  Alert
 } from '@mui/material';
 import { 
   AccountCircle,
@@ -21,7 +22,8 @@ import {
   Email,
   CheckCircle,
   LocationOn,
-  FaceRetouchingNatural
+  FaceRetouchingNatural,
+  Warning
 } from '@mui/icons-material';
 import { useParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/shared/ToastProvider';
@@ -34,6 +36,8 @@ export default function CheckinPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const webcamRef = useRef<Webcam>(null);
+  const loadAttemptRef = useRef(0);
+  const maxLoadAttempts = 3;
 
   const [step, setStep] = useState<'verifying-location' | 'details' | 'face-scan' | 'processing'>('verifying-location');
   const [formData, setFormData] = useState({ name: '', phone: '', email: '' });
@@ -44,57 +48,89 @@ export default function CheckinPage() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [modelsLoaded, setModelsLoaded] = useState(false);
-  const [faceDetected, setFaceDetected] = useState(false);
-  const [faceQuality, setFaceQuality] = useState<number>(0);
+  const [modelLoadError, setModelLoadError] = useState<string>('');
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-  // Load face-api.js models on mount
+  // Load face-api.js models on mount with retry logic
   useEffect(() => {
+    let mounted = true;
+    
     const loadModels = async () => {
-      try {
-        console.log('Starting to load face recognition models...');
-        
-        // First check if models are accessible
-        try {
-          const checkResponse = await fetch('/api/check-models');
-          const checkData = await checkResponse.json();
-          console.log('Model availability check:', checkData);
-          
-          if (!checkData.success) {
-            console.error('Models not available:', checkData);
-            showToast('Face recognition models not available on server. Please contact admin.', 'error');
-            return;
-          }
-        } catch (checkError) {
-          console.warn('Could not verify models, continuing anyway:', checkError);
+      if (loadAttemptRef.current >= maxLoadAttempts) {
+        if (mounted) {
+          setModelLoadError('Failed to load face recognition models after multiple attempts. Please check your internet connection and refresh the page.');
         }
+        return;
+      }
+
+      loadAttemptRef.current += 1;
+      setIsLoadingModels(true);
+      setModelLoadError('');
+
+      try {
+        console.log(`🔄 Loading face models (Attempt ${loadAttemptRef.current}/${maxLoadAttempts})...`);
         
         const MODEL_URL = '/models';
         
-        // Load all three models with error handling
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        console.log('✓ Face detection model loaded');
+        // Load models sequentially with timeout
+        const loadWithTimeout = (promise: Promise<any>, timeoutMs: number) => {
+          return Promise.race([
+            promise,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Model load timeout')), timeoutMs)
+            )
+          ]);
+        };
+
+        // Use TinyFaceDetector (lighter and faster) as fallback
+        try {
+          await loadWithTimeout(
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            15000
+          );
+          console.log('✓ Face detection model loaded (SSD MobileNet)');
+        } catch (e) {
+          console.warn('SSD MobileNet failed, trying TinyFaceDetector...');
+          await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+          console.log('✓ Face detection model loaded (Tiny)');
+        }
         
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await loadWithTimeout(
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          15000
+        );
         console.log('✓ Face landmark model loaded');
         
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        await loadWithTimeout(
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+          15000
+        );
         console.log('✓ Face recognition model loaded');
         
-        setModelsLoaded(true);
-        console.log('✓ All face recognition models loaded successfully');
+        if (mounted) {
+          setModelsLoaded(true);
+          setIsLoadingModels(false);
+          console.log('✅ All face recognition models loaded successfully');
+        }
       } catch (error) {
-        console.error('❌ Error loading face models:', error);
-        showToast('Failed to load face recognition models. Please refresh the page.', 'error');
+        console.error(`❌ Error loading face models (Attempt ${loadAttemptRef.current}):`, error);
         
-        // Retry after 3 seconds
-        setTimeout(() => {
-          console.log('Retrying model load...');
-          loadModels();
-        }, 3000);
+        if (mounted && loadAttemptRef.current < maxLoadAttempts) {
+          setModelLoadError(`Loading models... Attempt ${loadAttemptRef.current}/${maxLoadAttempts}`);
+          setTimeout(() => loadModels(), 2000);
+        } else if (mounted) {
+          setIsLoadingModels(false);
+          setModelLoadError('Failed to load face recognition. Please refresh the page or contact support.');
+        }
       }
     };
+
     loadModels();
-  }, [showToast]);
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Check location on mount
   useEffect(() => {
@@ -191,12 +227,12 @@ export default function CheckinPage() {
     setStep('face-scan');
   };
 
-  // Auto-capture with face recognition
+  // Simplified auto-capture with better error handling
   const startAutoCapture = useCallback(async () => {
-    if (!webcamRef.current || isCapturing || !modelsLoaded) {
-      if (!modelsLoaded) {
-        showToast('Face recognition models are still loading...', 'warning');
-      }
+    if (!webcamRef.current || isCapturing) return;
+    
+    if (!modelsLoaded) {
+      showToast('Face recognition models are still loading. Please wait...', 'warning');
       return;
     }
     
@@ -205,58 +241,69 @@ export default function CheckinPage() {
     setCaptureProgress(0);
     const photos: string[] = [];
     const descriptors: number[][] = [];
+    let successfulCaptures = 0;
     
-    showToast('Detecting your face...', 'info');
+    try {
+      showToast('Hold still while we capture your face...', 'info');
 
-    for (let i = 0; i < 3; i++) {
-      await new Promise(resolve => setTimeout(resolve, 600)); // 600ms between captures
-      
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (!imageSrc) continue;
-
-      try {
-        // Create image element from base64
-        const img = await faceapi.fetchImage(imageSrc);
+      // Capture 3 photos with face detection
+      for (let attempt = 0; attempt < 10 && successfulCaptures < 3; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 800));
         
-        // Detect face and extract descriptor
-        const detection = await faceapi
-          .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-          .withFaceLandmarks()
-          .withFaceDescriptor();
+        const imageSrc = webcamRef.current?.getScreenshot();
+        if (!imageSrc) {
+          console.warn('Failed to capture image');
+          continue;
+        }
 
-        if (detection) {
-          const quality = detection.detection.score;
+        try {
+          // Create image from base64
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = imageSrc;
+          });
           
-          if (quality >= 0.7) {
+          // Detect face with lower threshold for better success rate
+          const detection = await faceapi
+            .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
+            .withFaceLandmarks()
+            .withFaceDescriptor();
+
+          if (detection && detection.detection.score >= 0.5) {
             photos.push(imageSrc);
             descriptors.push(Array.from(detection.descriptor));
+            successfulCaptures++;
+            
             setCapturedPhotos(prev => [...prev, imageSrc]);
-            setCaptureProgress(((i + 1) / 3) * 100);
-            setFaceDetected(true);
-            setFaceQuality(quality);
+            setCaptureProgress((successfulCaptures / 3) * 100);
+            
+            console.log(`✓ Captured ${successfulCaptures}/3 with confidence ${(detection.detection.score * 100).toFixed(1)}%`);
           } else {
-            showToast('Face not clear. Please improve lighting.', 'warning');
-            i--; // Retry this capture
+            console.log(`⚠️ Low quality face (attempt ${attempt + 1})`);
           }
-        } else {
-          showToast('No face detected. Please center your face.', 'warning');
-          i--; // Retry this capture
+        } catch (detectionError) {
+          console.warn('Detection error:', detectionError);
         }
-      } catch (error) {
-        console.error('Face detection error:', error);
-        i--; // Retry on error
       }
-    }
 
-    setIsCapturing(false);
-    
-    if (photos.length === 3 && descriptors.length === 3) {
-      await handleCheckin(photos, descriptors);
-    } else {
-      showToast('Failed to capture clear face images. Please try again.', 'error');
+      setIsCapturing(false);
+      
+      if (successfulCaptures >= 3) {
+        console.log(`✅ Successfully captured ${successfulCaptures} face samples`);
+        await handleCheckin(photos, descriptors);
+      } else {
+        showToast(`Only captured ${successfulCaptures} face samples. Please ensure good lighting and try again.`, 'error');
+        setCapturedPhotos([]);
+        setCaptureProgress(0);
+      }
+    } catch (error) {
+      console.error('Face capture error:', error);
+      setIsCapturing(false);
       setCapturedPhotos([]);
       setCaptureProgress(0);
-      setFaceDetected(false);
+      showToast('Face capture failed. Please try again.', 'error');
     }
   }, [isCapturing, modelsLoaded, showToast]);
 
@@ -415,19 +462,47 @@ export default function CheckinPage() {
                     {isRegistered ? `Welcome Back, ${formData.name}!` : 'Face Registration'}
                   </Typography>
                   
-                  {!modelsLoaded && (
-                    <Paper className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                      <Box className="flex items-center justify-center gap-2">
-                        <CircularProgress size={20} className="text-orange-600" />
-                        <Typography variant="body2" className="text-orange-700 font-semibold">
-                          Loading face recognition models...
-                        </Typography>
-                      </Box>
-                    </Paper>
+                  {/* Model Loading Status */}
+                  {isLoadingModels && !modelsLoaded && (
+                    <Alert severity="info" icon={<CircularProgress size={20} />}>
+                      <Typography variant="body2" className="font-semibold">
+                        Loading face recognition models...
+                      </Typography>
+                      <Typography variant="caption">
+                        {modelLoadError || 'Please wait while we prepare the face scanner'}
+                      </Typography>
+                    </Alert>
+                  )}
+                  
+                  {/* Model Load Error */}
+                  {modelLoadError && !modelsLoaded && !isLoadingModels && (
+                    <Alert severity="error" icon={<Warning />}>
+                      <Typography variant="body2" className="font-semibold">
+                        Face Recognition Unavailable
+                      </Typography>
+                      <Typography variant="caption">
+                        {modelLoadError}
+                      </Typography>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="mt-2 px-4 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                      >
+                        Refresh Page
+                      </button>
+                    </Alert>
+                  )}
+                  
+                  {/* Success - Models Loaded */}
+                  {modelsLoaded && (
+                    <Alert severity="success">
+                      <Typography variant="caption">
+                        ✓ Face recognition ready
+                      </Typography>
+                    </Alert>
                   )}
                   
                   {isRegistered && (
-                    <Paper className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
+                    <Paper className="p-4 bg-green-50 border border-green-200 rounded-xl">
                       <Typography variant="body2" className="text-green-700 text-center font-semibold">
                         ✓ Credentials valid until end of {new Date().toLocaleString('default', { month: 'long' })}
                       </Typography>
@@ -438,14 +513,14 @@ export default function CheckinPage() {
                   )}
                   
                   {!isRegistered && (
-                    <Paper className="p-3 bg-violet-50 border border-violet-200 rounded-xl mb-4">
+                    <Paper className="p-3 bg-violet-50 border border-violet-200 rounded-xl">
                       <Typography variant="caption" className="text-violet-700 text-center block">
                         📸 First time this month? Your face will be registered for the entire month
                       </Typography>
                     </Paper>
                   )}
 
-                  <Paper className="p-3 bg-blue-50 border border-blue-200 rounded-xl mb-4">
+                  <Paper className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
                     <Typography variant="caption" className="text-blue-700 text-center block font-semibold">
                       ℹ️ Daily Limit: 1 Check-In + 1 Check-Out
                     </Typography>
@@ -467,22 +542,10 @@ export default function CheckinPage() {
                       className="w-full h-auto"
                     />
                     
-                    {faceDetected && !isCapturing && (
-                      <Box className="absolute top-4 left-4 right-4">
-                        <Chip
-                          icon={<FaceRetouchingNatural />}
-                          label={`Face Detected - Quality: ${Math.round(faceQuality * 100)}%`}
-                          color="success"
-                          size="small"
-                          sx={{ fontWeight: 'bold' }}
-                        />
-                      </Box>
-                    )}
-                    
                     {captureProgress > 0 && (
                       <Box className="absolute bottom-0 left-0 right-0 bg-black/50 p-4">
                         <Typography variant="body2" className="text-white text-center mb-2">
-                          Analyzing Face: {Math.round(captureProgress)}%
+                          Capturing: {Math.round(captureProgress)}%
                         </Typography>
                         <LinearProgress 
                           variant="determinate" 
@@ -525,14 +588,14 @@ export default function CheckinPage() {
                       className={`w-full h-14 ${modelsLoaded ? 'bg-primary hover:bg-primary/90' : 'bg-gray-400 cursor-not-allowed'} text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2`}
                     >
                       <FaceRetouchingNatural />
-                      {modelsLoaded ? 'Start Face Recognition' : 'Loading Models...'}
+                      {modelsLoaded ? 'Start Face Scan' : 'Loading Models...'}
                     </button>
                   )}
 
                   {isCapturing && (
                     <Paper className="p-4 bg-violet-50 border border-violet-100 rounded-xl">
                       <Typography variant="body2" className="text-center text-violet-700 font-semibold">
-                        🔍 Analyzing facial features...
+                        🔍 Analyzing your face...
                         <br />
                         <span className="text-sm">Keep your face centered and well-lit</span>
                       </Typography>
