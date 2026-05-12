@@ -35,5 +35,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# face recognition models (large binary files - download via setup script)
-/public/models
+# face recognition models (uncomment to exclude large binary files)
+# /public/models
